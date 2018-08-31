@@ -52,7 +52,10 @@ import net.corda.node.services.keys.KeyManagementServiceInternal
 import net.corda.node.services.keys.PersistentKeyManagementService
 import net.corda.node.services.messaging.DeduplicationHandler
 import net.corda.node.services.messaging.MessagingService
-import net.corda.node.services.network.*
+import net.corda.node.services.network.NetworkMapClient
+import net.corda.node.services.network.NetworkMapUpdater
+import net.corda.node.services.network.NodeInfoWatcher
+import net.corda.node.services.network.PersistentNetworkMapCache
 import net.corda.node.services.persistence.*
 import net.corda.node.services.schema.NodeSchemaService
 import net.corda.node.services.statemachine.*
@@ -141,8 +144,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         // TODO Break cyclic dependency
         identityService.database = database
     }
-    private val persistentNetworkMapCache = PersistentNetworkMapCache(database, configuration.myLegalName)
-    val networkMapCache = NetworkMapCacheImpl(persistentNetworkMapCache, identityService, database).tokenize()
+    val networkMapCache = PersistentNetworkMapCache(database, identityService, configuration.myLegalName).tokenize()
     val checkpointStorage = DBCheckpointStorage()
     @Suppress("LeakingThis")
     val transactionStorage = makeTransactionStorage(configuration.transactionCacheSizeBytes).tokenize()
@@ -252,7 +254,6 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         identityService.start(trustRoot, listOf(identity.certificate, nodeCa))
         return database.use {
             it.transaction {
-                persistentNetworkMapCache.start(notaries = emptyList())
                 val (_, nodeInfoAndSigned) = updateNodeInfo(identity, identityKeyPair, publish = false)
                 nodeInfoAndSigned.nodeInfo
             }
@@ -264,8 +265,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         log.info("Starting clearing of network map cache entries...")
         startDatabase()
         database.use {
-            persistentNetworkMapCache.start(notaries = emptyList())
-            persistentNetworkMapCache.clearNetworkMapCache()
+            networkMapCache.clearNetworkMapCache()
         }
     }
 
@@ -306,8 +306,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         identityService.start(trustRoot, listOf(identity.certificate, nodeCa))
 
         val (keyPairs, nodeInfoAndSigned, myNotaryIdentity) = database.transaction {
-            persistentNetworkMapCache.start(netParams.notaries)
-            networkMapCache.start()
+            networkMapCache.start(netParams.notaries)
             updateNodeInfo(identity, identityKeyPair, publish = true)
         }
 
