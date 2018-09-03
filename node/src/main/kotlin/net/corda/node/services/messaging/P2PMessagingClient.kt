@@ -540,7 +540,7 @@ class P2PMessagingClient(val config: NodeConfiguration,
 
     override fun getAddressOfParty(partyInfo: PartyInfo): MessageRecipients {
         return when (partyInfo) {
-            is PartyInfo.SingleNode -> NodeAddress(partyInfo.party.owningKey, partyInfo.addresses.single())
+            is PartyInfo.SingleNode -> NodeAddress(partyInfo.party.owningKey, partyInfo.addresses.first())
             is PartyInfo.DistributedNode -> ServiceAddress(partyInfo.party.owningKey)
         }
     }
